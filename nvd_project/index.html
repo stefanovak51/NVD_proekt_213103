@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+        <title>Babylon.js sample code</title>
+
+        <!-- Babylon.js -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
+        <script src="https://assets.babylonjs.com/generated/Assets.js"></script>
+        <script src="https://cdn.babylonjs.com/recast.js"></script>
+        <script src="https://cdn.babylonjs.com/ammo.js"></script>
+        <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+        <script src="https://cdn.babylonjs.com/cannon.js"></script>
+        <script src="https://cdn.babylonjs.com/Oimo.js"></script>
+        <script src="https://cdn.babylonjs.com/earcut.min.js"></script>
+        <script src="https://cdn.babylonjs.com/babylon.js"></script>
+        <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+        <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+        <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
+        <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.js"></script>
+        <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
+        <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+        <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+        <script src="https://code.jquery.com/pep/0.4.3/pep.js"></script>
+
+        <style>
+            html, body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+            
+            #canvasZone {
+                width: 100%;
+                height: 100%;
+            }
+            #scoreElement {
+                position: absolute;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                color: #d7d4d4;
+                font-size: 30px;
+                font-family: Arial, sans-serif;
+                background-color: rgb(215, 21, 21);
+                padding: 10px 20px;
+                border-radius: 10px;
+                border: 2px solid #fcfafa;
+                box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+                text-align: center;
+            }
+        </style>
+    </head>
+<body>
+    <div id="canvasZone"><canvas id="renderCanvas"></canvas></div>
+    <div id="scoreElement"></div>
+    <script>
+        var canvas = document.getElementById("renderCanvas");
+
+        var startRenderLoop = function (engine, canvas) {
+            engine.runRenderLoop(function () {
+                if (sceneToRender && sceneToRender.activeCamera) {
+                    sceneToRender.render();
+                }
+            });
+        }
+
+        var engine = null;
+        var scene = null;
+        var sceneToRender = null;
+        var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true,
+            { preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false}); };
+        var createScene = async function () {
+    // This creates a basic Babylon Scene object (non-mesh)
+    var scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color3(0.02, 0.53, 0.58);
+    var camera = new BABYLON.ArcRotateCamera("camera", 70, 1, 100, BABYLON.Vector3.Zero(), scene);
+    camera.attachControl(canvas, true);
+    camera.setTarget(BABYLON.Vector3.Zero());
+
+    // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+    var light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+    light.intensity = 0.7;
+    await Ammo();
+    //enable physics in the scene
+    scene.enablePhysics(new BABYLON.Vector3(0,-9.8,0), new BABYLON.AmmoJSPlugin());
+
+    var netSound = new BABYLON.Sound("netSound",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/mixkit-basketball-ball-hitting-the-net-2084.wav", scene, null, {
+        loop: false, autoplay: false});
+    var tappingSound = new BABYLON.Sound("tappingSound",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/mixkit-basketball-falling-indoor-394.wav", scene, null, {
+        loop: false, autoplay: false});    
+    
+    
+    const BasketballCourtImport = await BABYLON.SceneLoader.ImportMeshAsync("",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/",
+        "Basketball Court-final.glb", scene);
+    const court = BasketballCourtImport.meshes[0];
+    court.position.y = 0;
+    BasketballCourtImport.meshes.forEach(mesh => {
+        mesh.isPickable = true;
+        mesh.metadata = { isCourt: true };
+    });
+
+    court.physicsImpostor = new BABYLON.PhysicsImpostor(
+        court,
+        BABYLON.PhysicsImpostor.PlaneImpostor, 
+        { mass: 0, restitution: 0 }, 
+        scene
+    );
+ 
+    var courtCollider = BABYLON.MeshBuilder.CreateBox("courtCollider",
+        {width: 120, depth: 50, height: 0.3}, scene);
+    courtCollider.position.y = 0; 
+    courtCollider.isVisible = false; 
+
+    courtCollider.physicsImpostor = new BABYLON.PhysicsImpostor(
+        courtCollider,
+        BABYLON.PhysicsImpostor.BoxImpostor,
+        { mass: 0, restitution: 0.5, friction: 0.5 },
+        scene
+    );
+
+
+    const basketballImportResult = await BABYLON.SceneLoader.ImportMeshAsync("",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/", "uploads_files_3232212_Baseketball.glb", scene);
+    const basketballImportResult2 = await BABYLON.SceneLoader.ImportMeshAsync("",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/", "uploads_files_3232212_Baseketball.glb", scene);
+    const basketballImportResult3 = await BABYLON.SceneLoader.ImportMeshAsync("",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/", "uploads_files_3232212_Baseketball.glb", scene);
+    const basketballImportResult4 = await BABYLON.SceneLoader.ImportMeshAsync("",
+        "https://raw.githubusercontent.com/stefanovak51/project/master/", "uploads_files_3232212_Baseketball.glb", scene);
+
+    var basketball = basketballImportResult.meshes[0];
+    var basketball2 = basketballImportResult2.meshes[0];
+    var basketball3 = basketballImportResult3.meshes[0];
+    var basketball4 = basketballImportResult4.meshes[0];
+
+    basketball.scaling = new BABYLON.Vector3(1, 1, 1); 
+    basketball.position = new BABYLON.Vector3(0, 0, 0); 
+    basketball2.scaling = new BABYLON.Vector3(1, 1, 1); 
+    basketball2.position = new BABYLON.Vector3(-21, 0, 0);
+    basketball3.scaling = new BABYLON.Vector3(1, 1, 1);
+    basketball3.position = new BABYLON.Vector3(18, 0.2, -8);
+    basketball4.scaling = new BABYLON.Vector3(1, 1, 1);
+    basketball4.position = new BABYLON.Vector3(15, 0.2, 0);
+
+    basketball.name = "basketball";
+    basketball2.name = "basketball2";
+    basketball3.name = "basketball3";
+    basketball4.name = "basketball4";
+
+    basketball.physicsImpostor = new BABYLON.PhysicsImpostor(
+        basketball, 
+        BABYLON.PhysicsImpostor.SphereImpostor, 
+        { mass: 1, friction: 0.5, restitution: 1 }, 
+        scene
+    );
+    basketball.physicsImpostor.sleep();
+
+    basketball2.physicsImpostor = new BABYLON.PhysicsImpostor(
+        basketball2, 
+        BABYLON.PhysicsImpostor.SphereImpostor, 
+        { mass: 1, friction: 0.5, restitution: 0.5 }, 
+        scene
+    );
+    basketball2.physicsImpostor.sleep();
+
+    basketball3.physicsImpostor = new BABYLON.PhysicsImpostor(
+        basketball3, 
+        BABYLON.PhysicsImpostor.SphereImpostor, 
+        { mass: 1, friction: 0.5, restitution: 0.5 }, 
+        scene
+    );
+    basketball3.physicsImpostor.sleep();
+
+    basketball4.physicsImpostor = new BABYLON.PhysicsImpostor(
+        basketball4, 
+        BABYLON.PhysicsImpostor.SphereImpostor, 
+        { mass: 1, friction: 0.5, restitution: 0.5 }, 
+        scene
+    );
+    basketball4.physicsImpostor.sleep();
+
+
+    const basketballImports = [
+        { result: basketballImportResult, metadataKey: 'isBasketball' },
+        { result: basketballImportResult2, metadataKey: 'isBasketball2' },
+        { result: basketballImportResult3, metadataKey: 'isBasketball3' }
+    ];
+
+    for (let i = 0; i < basketballImports.length; i++) {
+        const { result, metadataKey } = basketballImports[i];
+        for (let j = 0; j < result.meshes.length; j++) {
+            let mesh = result.meshes[j];
+            mesh.isPickable = true;
+            mesh.metadata = { [metadataKey]: true };
+        }
+    }
+    
+    var hoop2 = new BABYLON.Vector3(-31, 10.5, 0);
+    var hoop3 = new BABYLON.Vector3(39, 10.5, 0);
+
+    var detection2Hoop = BasketballCourtImport.meshes.find(mesh => mesh.name === "Net.001");
+    var detection3Hoop = BasketballCourtImport.meshes.find(mesh => mesh.name === "Net"); 
+
+    var hoop2TriggerZone = BABYLON.MeshBuilder.CreateCylinder("hoop2TriggerZone", {
+        diameter: 2,    
+        height: 0.5,   
+        tessellation: 24
+    }, scene);
+    hoop2TriggerZone.position = new BABYLON.Vector3(-34, 10.5, 0); 
+    hoop2TriggerZone.isVisible = false; 
+
+    hoop2TriggerZone.physicsImpostor = new BABYLON.PhysicsImpostor(
+        hoop2TriggerZone, 
+        BABYLON.PhysicsImpostor.NoImpostor, 
+        { mass: 0 }, 
+        scene
+    );
+
+    var hoop3TriggerZone = BABYLON.MeshBuilder.CreateCylinder("hoop2TriggerZone", {
+        diameter: 2,    
+        height: 0.5,    
+        tessellation: 24
+    }, scene);
+    hoop3TriggerZone.position = new BABYLON.Vector3(39, 10.5, 0); 
+    hoop3TriggerZone.isVisible = false;
+
+    hoop3TriggerZone.physicsImpostor = new BABYLON.PhysicsImpostor(
+        hoop3TriggerZone, 
+        BABYLON.PhysicsImpostor.NoImpostor,  
+        { mass: 0 }, 
+        scene
+    );
+
+    var basketball2StartPosition = new BABYLON.Vector3(-21, 0, 0);
+    var basketball3StartPosition = new BABYLON.Vector3(18, 0.2, -8);
+
+    var score = 0;
+    scoreElement = document.getElementById("scoreElement");
+    function updateScore() {
+        scoreElement.innerHTML = 'Score:'+ score ;
+    }
+
+    scene.onBeforeRenderObservable.add(() => {
+        if (basketball2.physicsImpostor) {
+            if (basketball2.intersectsMesh(hoop2TriggerZone, true)) {
+                netSound.play();
+                detection2Hoop.isVisible = false;
+                setTimeout(() => {
+                    basketball2.position = basketball2StartPosition.clone();
+                }, 2000); 
+                setTimeout(() => {
+                    detection2Hoop.isVisible = true;
+                }, 150); 
+            }
+        }
+        if (basketball3.physicsImpostor) {
+            if (basketball3.intersectsMesh(hoop3TriggerZone, true)) {
+                netSound.play();
+                detection3Hoop.isVisible = false;
+                setTimeout(() => {
+                    basketball3.position = basketball3StartPosition.clone();
+                }, 2000); 
+                setTimeout(() => {
+                    detection3Hoop.isVisible = true;
+                }, 150); 
+            }
+        }
+    });
+
+    scene.registerBeforeRender(function(){
+        if (basketball2.intersectsMesh(hoop2TriggerZone, true)) {
+            basketball2.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0, -10, 0)); 
+        }
+        if (basketball3.intersectsMesh(hoop3TriggerZone, true)) {
+            basketball3.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0, -10, 0)); 
+    }
+        updateScore();
+    });
+
+    var finalPos, finalPosNorm, distance, startPos;
+
+    scene.onPointerDown = function(evt, pickResult){
+        if (pickResult.pickedMesh && pickResult.pickedMesh.metadata.isBasketball) {
+            basketball.physicsImpostor.wakeUp();
+            tappingSound.play();
+            var impulseDirection = new BABYLON.Vector3(0, 5, 0); 
+            var contactPoint = basketball.position;
+            basketball.physicsImpostor.applyImpulse(impulseDirection, contactPoint);
+        }
+        if (pickResult.pickedMesh && pickResult.pickedMesh.metadata.isBasketball2) {
+            basketball2.physicsImpostor.wakeUp();
+            var direction = hoop2.subtract(basketball2.position).normalize();
+            var force = direction.scale(10); 
+            force.y += 7.8;
+            basketball2.physicsImpostor.applyImpulse(force, basketball2.getAbsolutePosition());
+            setTimeout(() => {
+                score += 1;
+                updateScore();
+            }, 3000);
+        }
+        if (pickResult.pickedMesh && pickResult.pickedMesh.metadata.isBasketball3) {
+            basketball3.physicsImpostor.wakeUp();
+            var direction = hoop3.subtract(basketball3.position).normalize();
+            var force = direction.scale(10); 
+            force.y += 12.2; 
+            basketball3.physicsImpostor.applyImpulse(force, basketball3.getAbsolutePosition());
+            setTimeout(() => {
+                score += 3;
+                updateScore();
+            }, 3000);
+        }
+        if(pickResult.pickedMesh && pickResult.pickedMesh.metadata.isCourt) {
+            finalPos = pickResult.pickedPoint.clone();
+            startPos = basketball4.position.clone();
+            finalPos = finalPos.subtract(startPos); 
+            finalPosNorm = BABYLON.Vector3.Normalize(finalPos);
+            basketball4.physicsImpostor.setLinearVelocity(finalPosNorm.scale(8));
+        }
+    };
+
+    return scene;
+};
+                window.initFunction = async function() {
+                    
+                    
+                    
+                    var asyncEngineCreation = async function() {
+                        try {
+                        return createDefaultEngine();
+                        } catch(e) {
+                        console.log("the available createEngine function failed. Creating the default engine instead");
+                        return createDefaultEngine();
+                        }
+                    }
+
+                    window.engine = await asyncEngineCreation();
+        if (!engine) throw 'engine should not be null.';
+        startRenderLoop(engine, canvas);
+        window.scene = createScene();};
+        initFunction().then(() => {scene.then(returnedScene => { sceneToRender = returnedScene; });
+                            
+        });
+
+        // Resize
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>
